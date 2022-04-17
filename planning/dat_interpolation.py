@@ -2,7 +2,6 @@
 This program reads from the telemetry of the UR5
 """
 import sys
-from weakref import WeakKeyDictionary
 import numpy as np
 
 
