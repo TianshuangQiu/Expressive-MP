@@ -1,3 +1,4 @@
+from cmath import pi
 from urdfpy import URDF
 from urdfpy import SafetyController
 import numpy as np
@@ -36,6 +37,7 @@ for string in contents:
         arr = np.vstack([arr, vert])
 
 arr = arr.T
+
 real_time = (float)(str.split(contents[-1])
                     [0]) - (float)(str.split(contents[0])[0])
 
