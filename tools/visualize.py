@@ -36,11 +36,14 @@ for string in contents:
         arr = np.vstack([arr, vert])
 
 arr = arr.T
+real_time = (float)(str.split(contents[-1])
+                    [0]) - (float)(str.split(contents[0])[0])
 
+print(f"Real time calculated to be: {real_time}")
 robot.animate(cfg_trajectory={robot.actuated_joints[0]: arr[0],
                               robot.actuated_joints[1]: arr[1],
                               robot.actuated_joints[2]: arr[2],
                               robot.actuated_joints[3]: arr[3],
                               robot.actuated_joints[4]: arr[4],
                               robot.actuated_joints[5]: arr[5]},
-              loop_time=10)
+              loop_time=real_time)
