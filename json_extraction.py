@@ -2,9 +2,10 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 
-TIMESTEP = 0.001 # needs to evenly divide 0.04, should match input to t_toss when called
-FRAMERATE = 25 # FPS in original video, should be 25
+TIMESTEP = 0.001  # needs to evenly divide 0.04, should match input to t_toss when called
+FRAMERATE = 25  # FPS in original video, should be 25
 prev_hand_kp = [0, 0]
+
 
 def readfile(n):
     if n < 10:
@@ -16,10 +17,12 @@ def readfile(n):
     else:
         numstring = str(n)
 
-    filename = "~/Desktop/Expressive-MP/waypoints/arbor/arbor3_00000000" + numstring + "_keypoints.json"
+    filename = "/home/akita/autolab/Expressive-MP/waypoints/IMG_4015/IMG_4015_00000000" + \
+        numstring + "_keypoints.json"
 
     item = pd.read_json(filename)
     return item
+
 
 def extract_angles(shoulder, elbow, wrist, fingertip):
     """
@@ -29,16 +32,17 @@ def extract_angles(shoulder, elbow, wrist, fingertip):
     xdiff1 = elbow[0] - shoulder[0]
     ydiff1 = elbow[1] - shoulder[1]
     theta1 = np.arctan2(ydiff1, xdiff1)
-    
+
     xdiff2 = wrist[0] - elbow[0]
     ydiff2 = wrist[1] - elbow[1]
     theta2 = np.arctan2(ydiff2, xdiff2)
-    
+
     xdiff3 = fingertip[0] - wrist[0]
     ydiff3 = fingertip[1] - wrist[1]
     theta3 = np.arctan2(ydiff3, xdiff3)
 
     return [theta1, theta2, theta3]
+
 
 def get_hand_kpt(d):
     """
@@ -46,7 +50,7 @@ def get_hand_kpt(d):
     the best we can and allow for lots of smoothing later.
     """
     global prev_hand_kp
-    
+
     keypoints = d['hand_right_keypoints_2d']
     for i in [12, 16, 8, 20]:
         p = keypoints[3 * i: 3 * i + 2]
@@ -55,19 +59,22 @@ def get_hand_kpt(d):
             return p
     return prev_hand_kp
 
+
 def linear_interp(array, num):
     interpolated = array[0]
     for i in range(len(array) - 1):
         interp = np.linspace(array[i], array[i + 1], num)
         interpolated = np.vstack([interpolated, interp])
-        
+
     return interpolated[1:]
+
 
 def fourier_filter(array, thresh):
     fourier = np.fft.rfft(array)
     fourier[np.abs(fourier) < thresh] = 0
     filtered = np.fft.irfft(fourier)
     return filtered
+
 
 def num_deriv(array, t):
     stack = None
@@ -79,7 +86,7 @@ def num_deriv(array, t):
 
 theta_list = []
 
-for n in range(1345):
+for n in range(2116):
     d = readfile(n)["people"][0]
     series = d['pose_keypoints_2d']
     pt0 = series[0:2]
@@ -98,8 +105,8 @@ kernel = np.array([1, 2, 4, 6, 10, 14, 17, 19, 17, 14, 10, 6, 4, 2, 1])
 #kernel = np.ones(9)
 kernel = kernel / np.sum(kernel)
 
-smoothed_thetas = np.vstack([np.convolve(tl[:, 0], kernel, mode='same'), 
-                             np.convolve(tl[:, 1], kernel, mode='same'), 
+smoothed_thetas = np.vstack([np.convolve(tl[:, 0], kernel, mode='same'),
+                             np.convolve(tl[:, 1], kernel, mode='same'),
                              np.convolve(tl[:, 2], kernel, mode='same')])
 
 data = smoothed_thetas[:, 150:560] - np.pi / 2
@@ -113,14 +120,14 @@ sh_filtered = fourier_filter(sh, 25)
 el_filtered = fourier_filter(el, 15)
 wr_filtered = fourier_filter(wr, 10)
 
-position = np.vstack([np.zeros_like(t), 
+position = np.vstack([np.zeros_like(t),
                       # np.sin(np.arange(len(data[0])) * 2 * np.pi / len(data[0])) * 0.5,
-                      sh_filtered, 
-                      el_filtered, 
-                      wr_filtered, 
+                      sh_filtered,
+                      el_filtered,
+                      wr_filtered,
                       np.ones_like(t) * np.pi / 2,
                       np.zeros_like(t)
-                     ]).T
+                      ]).T
 
 position = linear_interp(position, int(1 / FRAMERATE / TIMESTEP))
 t_int = linear_interp(t[np.newaxis].T, int(1 / FRAMERATE / TIMESTEP))
@@ -131,4 +138,4 @@ jerk = num_deriv(acceleration, TIMESTEP)
 
 output = np.hstack([t_int, position, velocity, acceleration, jerk])
 output = np.round_(output, decimals=5)
-np.savetxt("sine_dance.dat", output, fmt="%10.5f", delimiter='\t')
+np.savetxt("IMG_4015.dat", output, fmt="%10.5f", delimiter='\t')
