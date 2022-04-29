@@ -17,7 +17,7 @@ def readfile(n):
     else:
         numstring = str(n)
 
-    filename = "/home/akita/autolab/Expressive-MP/waypoints/IMG_4015/IMG_4015_00000000" + \
+    filename = "autolab/Expressive-MP/waypoints/IMG_4015/IMG_4015_00000000" + \
         numstring + "_keypoints.json"
 
     item = pd.read_json(filename)
@@ -109,7 +109,7 @@ smoothed_thetas = np.vstack([np.convolve(tl[:, 0], kernel, mode='same'),
                              np.convolve(tl[:, 1], kernel, mode='same'),
                              np.convolve(tl[:, 2], kernel, mode='same')])
 
-data = smoothed_thetas[:, 150:560] - np.pi / 2
+data = smoothed_thetas[:] - np.pi / 2
 t = np.arange(len(data[0])) / FRAMERATE
 
 sh = 0 - data[0]
