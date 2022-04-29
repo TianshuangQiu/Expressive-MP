@@ -1,0 +1,21 @@
+autopep8 @ file:///opt/conda/conda-bld/autopep8_1650463822033/work
+certifi==2020.6.20
+decorator==5.1.1
+freetype-py==2.2.0
+future==0.18.2
+imageio==2.15.0
+lxml==4.8.0
+networkx==2.2
+numpy==1.19.5
+Pillow==8.4.0
+pycodestyle @ file:///tmp/build/80754af9/pycodestyle_1636635402688/work
+pycollada==0.6
+pyglet==1.5.23
+PyOpenGL==3.1.0
+-e git+https://github.com/mmatl/pyrender@4a289a6205c5baa623cd0e7da1be3d898bcbc4da#egg=pyrender
+python-dateutil==2.8.2
+scipy==1.5.4
+six==1.16.0
+toml @ file:///tmp/build/80754af9/toml_1616166611790/work
+trimesh==3.11.2
+-e git+https://github.com/mmatl/urdfpy@5466842899b33bd549e8f9e2a9a987bd5e37373b#egg=urdfpy
