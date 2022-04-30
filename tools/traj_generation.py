@@ -93,12 +93,18 @@ def do_cc():
         return out
 
     sh_zeros = filter_zeros(sh_d)
-    split = np.split(sh, sh_zeros)
-    print(np.correlate(split[0], split[1]))
+    el_zeros = filter_zeros(el_d)
+    wr_zeros = filter_zeros(wr_d)
+    split = np.array([np.split(sh, sh_zeros),
+                      np.split(el, el_zeros),
+                      np.split(wr, wr_zeros)],
+                     dtype=object)
     fig, ax = plt.subplots()
-    plt.plot(sh, label="shoulder signal")
-    plt.scatter(sh_zeros, sh[sh_zeros], c='r', label="split points")
-    plt.title("Shoulder Joint Angle")
+    for s in split:
+        for q in s:
+            plt.plot(q)
+    #plt.scatter(sh_zeros, sh[sh_zeros], c='r', label="split points")
+    plt.title("Extracted Vectors")
     plt.xlabel("Time (seconds)")
     plt.ylabel("Angle (rad)")
     ax = plt.legend()
