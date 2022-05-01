@@ -95,15 +95,38 @@ def do_cc():
     sh_zeros = filter_zeros(sh_d)
     el_zeros = filter_zeros(el_d)
     wr_zeros = filter_zeros(wr_d)
-    split = np.array([np.split(sh, sh_zeros),
-                      np.split(el, el_zeros),
-                      np.split(wr, wr_zeros)],
+    split = np.array(np.split(sh, sh_zeros) +
+                     np.split(el, el_zeros) +
+                     np.split(wr, wr_zeros),
                      dtype=object)
+
+    def cross(arr1, arr2):
+        """
+        Cross correlation in case the two vectors do not 
+        have the same length
+        """
+        length = np.max([len(arr1), len(arr2)])
+        norm1, norm2 = np.linalg.norm(arr1), np.linalg.norm(arr2)
+        if norm1 == 0 or norm2 == 0:
+            return 0
+        arr1 = arr1 / norm1
+        arr2 = arr2 / norm2
+        arr1 = np.pad(arr1, length)
+        arr2 = np.pad(arr2, length)
+        return np.max(np.correlate(arr1, arr2, mode='full'))
+
+    cc = np.zeros((split.shape[0], split.shape[0]))
+    for i in range(len(split)):
+        for j in range(len(split)):
+            val = cross(split[i], split[j])
+            cc[i][j] = 0 if val == 1 else val
+
+    cc = np.max(cc, axis=1)
+    print(cc)
     fig, ax = plt.subplots()
     for s in split:
-        for q in s:
-            plt.plot(q)
-    #plt.scatter(sh_zeros, sh[sh_zeros], c='r', label="split points")
+        plt.plot(s)
+    # plt.scatter(sh_zeros, sh[sh_zeros], c='r', label="split points")
     plt.title("Extracted Vectors")
     plt.xlabel("Time (seconds)")
     plt.ylabel("Angle (rad)")
