@@ -8,7 +8,7 @@ import scipy.optimize
 TIMESTEP = 0.001  # needs to evenly divide 0.04, should match input to t_toss when called
 FRAMERATE = 25  # FPS in original video, should be 25
 prev_hand_kp = [0, 0]
-with open("saves/IMG_4010", "rb") as f:
+with open("saves/IMG_4015", "rb") as f:
     stack = np.load(f)
 
 sh = stack[0]
