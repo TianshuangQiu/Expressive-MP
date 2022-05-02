@@ -224,15 +224,13 @@ def do_cc():
 
 
 def do_decomp():
-    sh_d = np.fft.fft(sh)/2116
+    sh_d = np.fft.fft(sh)
     plt.plot(sh, label="original")
     total = np.zeros(2116)
-    for i in range(100):
-        c = sh_d[i]
-        print(c)
-        def f(x): return np.exp(x*c).real
-        total = list(map(f, t))
-    plt.plot(total, label="summed")
+    idx = np.argsort(np.abs(sh_d))
+    def f(x): return sinfunc(x, 1, sh_d[1058], 0, 0)
+    plt.plot(list(map(f, t)))
+    # print(total)
     plt.legend()
     plt.show()
 
