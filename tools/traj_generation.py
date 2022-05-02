@@ -161,7 +161,7 @@ def do_cc():
         for j in range(len(split)):
             val = cross(split[i], split[j])
             cc[i][j] = 0 if i == j else val
-    cc = np.max(cc, axis=0)
+    cc = np.sum(cc, axis=0)
     sort = np.argsort(cc)
 
     # for i in range(1, 5):
@@ -207,6 +207,9 @@ def do_cc():
 
     for p in range(len(position)):
         plt.plot(position[p], label=f"joint {p}")
+    plt.title("Planned Trajectory")
+    plt.xlabel("Time (steps)")
+    plt.ylabel("Angle (rad)")
     ax = plt.legend()
     plt.show()
 
