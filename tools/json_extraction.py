@@ -17,7 +17,7 @@ def readfile(n):
     else:
         numstring = str(n)
 
-    filename = "/home/akita/autolab/Expressive-MP/waypoints/IMG_4010/IMG_4010_00000000" + \
+    filename = "/home/akita/autolab/Expressive-MP/waypoints/IMG_4015/IMG_4015_00000000" + \
         numstring + "_keypoints.json"
 
     item = pd.read_json(filename)
@@ -86,10 +86,10 @@ def num_deriv(array, t):
 
 theta_list = []
 
-for n in range(1522):
+for n in range(2116):
     d = readfile(n)["people"][0]
     series = d['pose_keypoints_2d']
-    pt0 = series[0:2]
+    pt0 = series[1:3]
     pt1 = series[3:5]
     pt2 = series[6:8]
     pt3 = series[9:11]
@@ -119,5 +119,5 @@ wr = data[1] - data[2]
 
 data_stack = np.vstack([sh, el, wr])
 
-with open("saves/IMG_4010", "wb") as f:
+with open("saves/IMG_4015", "wb") as f:
     np.save(f, data_stack)

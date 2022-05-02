@@ -16,7 +16,7 @@ args = parser.parse_args()
 robot = URDF.load("/home/akita/autolab/urdfpy/tests/data/ur5/ur5.urdf")
 
 for joint in robot.actuated_joints:
-    joint.safety_controller = SafetyController(0)
+    joint.safety_controller = SafetyController(100)
 
 # Load traj file
 contents = []

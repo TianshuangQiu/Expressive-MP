@@ -1,4 +1,6 @@
+from cProfile import label
 import math
+from textwrap import wrap
 import matplotlib.pyplot as plt
 import argparse
 import numpy as np
@@ -8,7 +10,18 @@ import scipy.optimize
 TIMESTEP = 0.001  # needs to evenly divide 0.04, should match input to t_toss when called
 FRAMERATE = 25  # FPS in original video, should be 25
 prev_hand_kp = [0, 0]
-with open("saves/IMG_4015", "rb") as f:
+parser = argparse.ArgumentParser(
+    description='Generate a trajectory from parsed JSON files')
+parser.add_argument('file_path', type=str,
+                    help='Where is the numpy file stored at?')
+parser.add_argument('out_path', type=str,
+                    help='Where should I save the output file?')
+parser.add_argument('filter', type=str,
+                    help='Current options: fft, cc')
+
+# '/home/akita/autolab/ur5/ur5_description/urdf/ur5_joint_limited_robot.urdf'
+args = parser.parse_args()
+with open(args.file_path, "rb") as f:
     stack = np.load(f)
 
 sh = stack[0]
@@ -41,6 +54,10 @@ def num_deriv(array, t):
     return stack.T
 
 
+def sinfunc(t, A, w, p, c):
+    return A * np.sin(w*t + p) + c
+
+
 def fit_sin(tt, yy):
     '''Fit sin to the input time sequence, and return fitting parameters "amp", "omega", "phase", "offset", "freq", "period" and "fitfunc"'''
     tt = np.array(tt)
@@ -53,7 +70,6 @@ def fit_sin(tt, yy):
     guess_offset = np.mean(yy)
     guess = np.array([guess_amp, 2.*np.pi*guess_freq, 0., guess_offset])
 
-    def sinfunc(t, A, w, p, c): return A * np.sin(w*t + p) + c
     try:
         popt, pcov = scipy.optimize.curve_fit(
             sinfunc, tt, yy, p0=guess, maxfev=10000)
@@ -138,7 +154,7 @@ def do_cc():
         arr2 = arr2 / norm2
         arr1 = np.pad(arr1, length)
         arr2 = np.pad(arr2, length)
-        return np.max(np.correlate(arr1, arr2, mode='full')) * math.sqrt(norm1 * norm2)
+        return np.max(np.correlate(arr1, arr2, mode='full')) * np.min([norm1, norm2])
 
     cc = np.zeros((split.shape[0], split.shape[0]))
     for i in range(len(split)):
@@ -148,44 +164,53 @@ def do_cc():
     cc = np.max(cc, axis=0)
     sort = np.argsort(cc)
 
-    for i in range(1, 5):
-        curr_dat = horizontal[sort[i]]
-        x_dat = np.arange(len(curr_dat))
-        plt.plot(curr_dat, label=f"{i}th principle component")
-        rst = fit_sin(x_dat, curr_dat)["fitfunc"]
-        plt.plot(np.array(list(map(rst, x_dat))), label=f"{i}th fit")
-    # plt.scatter(sh_zeros, sh[sh_zeros], c='r', label="split points")
-    plt.title("Extracted Vectors")
-    plt.xlabel("Time (steps)")
-    plt.ylabel("Angle (rad)")
-    ax = plt.legend()
-    plt.show()
+    # for i in range(1, 5):
+    #     curr_dat = horizontal[sort[i]]
+    #     x_dat = np.arange(len(curr_dat))
+    #     plt.plot(curr_dat, label=f"{i}th principle component")
+    #     rst = fit_sin(x_dat, curr_dat)["fitfunc"]
+    #     plt.plot(np.array(list(map(rst, x_dat))), label=f"{i}th fit")
+    # # plt.scatter(sh_zeros, sh[sh_zeros], c='r', label="split points")
+    # plt.title("Extracted Vectors")
+    # plt.xlabel("Time (steps)")
+    # plt.ylabel("Angle (rad)")
+    # ax = plt.legend()
+    # plt.show()
 
     principle_motion = np.array(t)
-    for i in range(1, 20):
+    for i in range(1, len(sort)//2):
         curr_dat = horizontal[sort[i]]
         x_dat = np.arange(len(curr_dat))
         rst = fit_sin(x_dat, horizontal[sort[i]])["fitfunc"]
         principle_motion = np.vstack([principle_motion, list(map(rst, t))])
 
     principle_motion = principle_motion[1:]
+    print(f"Computed {len(principle_motion)} principle motions")
 
-    rand_idx = np.random.randint(19, size=9)
-    first_joint = principle_motion[rand_idx[0]] + \
-        principle_motion[rand_idx[1]] + \
-        principle_motion[rand_idx[2]]
-    first_joint = 500/np.linalg.norm(first_joint) * first_joint
-    position = np.vstack([first_joint,
+    def get_rand_motion(k):
+        rand_idx = np.random.randint(len(principle_motion), size=k)
+        out = np.zeros(len(principle_motion[0]))
+        for i in rand_idx:
+            out = out + principle_motion[i]
+
+        out /= (np.max(out)-np.min(out))
+        out *= 2 * np.pi
+        return out
+
+    position = np.vstack([get_rand_motion(20),
                           sh,
                           el,
-                          wr,
-                          principle_motion[rand_idx[3]] +
-                          principle_motion[rand_idx[4]] +
-                          principle_motion[rand_idx[5]],
-                          principle_motion[rand_idx[7]] +
-                          principle_motion[rand_idx[8]],
-                          ]).T
+                          fourier_filter(wr, 30),
+                          get_rand_motion(5),
+                          get_rand_motion(5)/5,
+                          ])
 
+    for p in range(len(position)):
+        plt.plot(position[p], label=f"joint {p}")
+    ax = plt.legend()
+    plt.show()
+
+    position = position.T
     position = linear_interp(position, int(1 / FRAMERATE / TIMESTEP))
     t_int = linear_interp(t[np.newaxis].T, int(1 / FRAMERATE / TIMESTEP))
 
@@ -195,20 +220,29 @@ def do_cc():
 
     output = np.hstack([t_int, position, velocity, acceleration, jerk])
     output = np.round_(output, decimals=5)
-    np.savetxt("IMG_4015.dat", output, fmt="%10.5f", delimiter='\t')
+    np.savetxt(args.out_path, output, fmt="%10.5f", delimiter='\t')
+
+
+def do_decomp():
+    sh_d = np.fft.fft(sh)/2116
+    plt.plot(sh, label="original")
+    total = np.zeros(2116)
+    for i in range(100):
+        c = sh_d[i]
+        print(c)
+        def f(x): return np.exp(x*c).real
+        total = list(map(f, t))
+    plt.plot(total, label="summed")
+    plt.legend()
+    plt.show()
 
 
 # Rest of program
-parser = argparse.ArgumentParser(
-    description='Generate a trajectory from parsed JSON files')
-parser.add_argument('filter', type=str,
-                    help='Current options: fft, cc')
-# '/home/akita/autolab/ur5/ur5_description/urdf/ur5_joint_limited_robot.urdf'
-args = parser.parse_args()
-
 if (args.filter == "fft"):
     do_fft()
 elif (args.filter == "cc"):
     do_cc()
+elif (args.filter == "decomp"):
+    do_decomp()
 else:
     print("Option not implemented yet")
