@@ -226,16 +226,41 @@ def do_cc():
     np.savetxt(args.out_path, output, fmt="%10.5f", delimiter='\t')
 
 
+def top_n(arr, n=10):
+    arr_d = np.fft.rfft(arr)
+    arr_d[n:] = 0
+    return np.fft.irfft(arr_d)
+
+
 def do_decomp():
-    sh_d = np.fft.fft(sh)
-    plt.plot(sh, label="original")
-    total = np.zeros(2116)
-    idx = np.argsort(np.abs(sh_d))
-    def f(x): return sinfunc(x, 1, sh_d[1058], 0, 0)
-    plt.plot(list(map(f, t)))
-    # print(total)
-    plt.legend()
+
+    position = np.vstack([top_n(sh),
+                          sh,
+                          el,
+                          wr,
+                          top_n(el),
+                          top_n(wr),
+                          ])
+
+    for p in range(len(position)):
+        plt.plot(position[p], label=f"joint {p}")
+    plt.title("Planned Trajectory")
+    plt.xlabel("Time (steps)")
+    plt.ylabel("Angle (rad)")
+    ax = plt.legend()
     plt.show()
+
+    position = position.T
+    position = linear_interp(position, int(1 / FRAMERATE / TIMESTEP))
+    t_int = linear_interp(t[np.newaxis].T, int(1 / FRAMERATE / TIMESTEP))
+
+    velocity = num_deriv(position, TIMESTEP)
+    acceleration = num_deriv(velocity, TIMESTEP)
+    jerk = num_deriv(acceleration, TIMESTEP)
+
+    output = np.hstack([t_int, position, velocity, acceleration, jerk])
+    output = np.round_(output, decimals=5)
+    np.savetxt(args.out_path, output, fmt="%10.5f", delimiter='\t')
 
 
 # Rest of program

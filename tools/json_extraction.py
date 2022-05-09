@@ -1,9 +1,20 @@
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.animation import FuncAnimation
+import argparse
 
+parser = argparse.ArgumentParser(
+    description='Parse data files')
+parser.add_argument('file_path', type=str,
+                    help='Where is the json folder stored at?')
+parser.add_argument('n', type=int,
+                    help='How many frames are there?')
+
+args = parser.parse_args()
 TIMESTEP = 0.001  # needs to evenly divide 0.04, should match input to t_toss when called
 FRAMERATE = 25  # FPS in original video, should be 25
+FRAMES = args.n
 prev_hand_kp = [0, 0]
 
 
@@ -19,6 +30,7 @@ def readfile(n):
 
     filename = "/home/akita/autolab/Expressive-MP/waypoints/IMG_4015/IMG_4015_00000000" + \
         numstring + "_keypoints.json"
+    # filename = args.file_path + numstring + "_keypoints.json"
 
     item = pd.read_json(filename)
     return item
@@ -69,26 +81,13 @@ def linear_interp(array, num):
     return interpolated[1:]
 
 
-def fourier_filter(array, thresh):
-    fourier = np.fft.rfft(array)
-    fourier[np.abs(fourier) < thresh] = 0
-    filtered = np.fft.irfft(fourier)
-    return filtered
-
-
-def num_deriv(array, t):
-    stack = None
-    for a in array.T:
-        grad = np.gradient(a, t, axis=0)
-        stack = (grad if stack is None else np.vstack([stack, grad]))
-    return stack.T
-
-
 theta_list = []
-
-for n in range(2116):
+all_frames = {}
+for n in range(FRAMES):
     d = readfile(n)["people"][0]
     series = d['pose_keypoints_2d']
+    body_dict = {}
+
     pt0 = series[1:3]
     pt1 = series[3:5]
     pt2 = series[6:8]
@@ -96,9 +95,154 @@ for n in range(2116):
     pt4 = series[12:14]
     hand_pt = get_hand_kpt(d)
 
+    for i in range(24):
+        x = series[i*3]
+        y = series[i*3+1]
+        body_dict[i] = (x, y)
+    body_dict[25] = hand_pt
+
     thetas = extract_angles(pt2, pt3, pt4, hand_pt)
     theta_list.append(thetas)
 
+    all_frames[n] = body_dict
+
+fig, ax = plt.subplots(figsize=(5, 5))
+ax.set_ylim([0, 2000])
+ax.set_xlim([1000, 3000])
+
+
+shoulder1, = ax.plot([], [])
+shoulder2, = ax.plot([], [])
+neck, = ax.plot([], [])
+head1, = ax.plot([], [])
+head2, = ax.plot([], [])
+head3, = ax.plot([], [])
+head4, = ax.plot([], [])
+elbow1, = ax.plot([], [])
+elbow2, = ax.plot([], [])
+wrist1, = ax.plot([], [])
+wrist2, = ax.plot([], [])
+hand, = ax.plot([], [])
+chest, = ax.plot([], [])
+hip1, = ax.plot([], [])
+hip2, = ax.plot([], [])
+knee1, = ax.plot([], [])
+knee2, = ax.plot([], [])
+ankle1, = ax.plot([], [])
+ankle2, = ax.plot([], [])
+
+
+def animate(i):
+    frame_dict = all_frames[i]
+    if not(frame_dict[1] == (0, 0) or frame_dict[2] == (0, 0)):
+        x = np.linspace(frame_dict[1][0], frame_dict[2][0])
+        y = np.linspace(frame_dict[1][1], frame_dict[2][1])
+        shoulder1.set_data(x, y)
+
+    if not(frame_dict[1] == (0, 0) or frame_dict[5] == (0, 0)):
+        x = np.linspace(frame_dict[1][0], frame_dict[5][0])
+        y = np.linspace(frame_dict[1][1], frame_dict[5][1])
+        shoulder2.set_data(x, y)
+
+    if not(frame_dict[0] == (0, 0) or frame_dict[1] == (0, 0)):
+        x = np.linspace(frame_dict[1][0], frame_dict[0][0])
+        y = np.linspace(frame_dict[1][1], frame_dict[0][1])
+        neck.set_data(x, y)
+
+    if not(frame_dict[0] == (0, 0) or frame_dict[14] == (0, 0)):
+        x = np.linspace(frame_dict[0][0], frame_dict[15][0])
+        y = np.linspace(frame_dict[0][1], frame_dict[15][1])
+        head1.set_data(x, y)
+
+    if not(frame_dict[14] == (0, 0) or frame_dict[16] == (0, 0)):
+        x = np.linspace(frame_dict[16][0], frame_dict[18][0])
+        y = np.linspace(frame_dict[16][1], frame_dict[18][1])
+        head2.set_data(x, y)
+
+    if not(frame_dict[0] == (0, 0) or frame_dict[15] == (0, 0)):
+        x = np.linspace(frame_dict[0][0], frame_dict[16][0])
+        y = np.linspace(frame_dict[0][1], frame_dict[16][1])
+        head3.set_data(x, y)
+
+    if not(frame_dict[15] == (0, 0) or frame_dict[17] == (0, 0)):
+        x = np.linspace(frame_dict[15][0], frame_dict[17][0])
+        y = np.linspace(frame_dict[15][1], frame_dict[17][1])
+        head4.set_data(x, y)
+
+    if not(frame_dict[2] == (0, 0) or frame_dict[3] == (0, 0)):
+        x = np.linspace(frame_dict[2][0], frame_dict[3][0])
+        y = np.linspace(frame_dict[2][1], frame_dict[3][1])
+        elbow1.set_data(x, y)
+
+    if not(frame_dict[5] == (0, 0) or frame_dict[6] == (0, 0)):
+        x = np.linspace(frame_dict[5][0], frame_dict[6][0])
+        y = np.linspace(frame_dict[5][1], frame_dict[6][1])
+        elbow2.set_data(x, y)
+
+    if not(frame_dict[3] == (0, 0) or frame_dict[4] == (0, 0)):
+        x = np.linspace(frame_dict[3][0], frame_dict[4][0])
+        y = np.linspace(frame_dict[3][1], frame_dict[4][1])
+        wrist1.set_data(x, y)
+
+    if not(frame_dict[6] == (0, 0) or frame_dict[7] == (0, 0)):
+        x = np.linspace(frame_dict[6][0], frame_dict[7][0])
+        y = np.linspace(frame_dict[6][1], frame_dict[7][1])
+        wrist2.set_data(x, y)
+
+    if not(frame_dict[4] == (0, 0) or frame_dict[25] == (0, 0)):
+        x = np.linspace(frame_dict[4][0], frame_dict[25][0])
+        y = np.linspace(frame_dict[4][1], frame_dict[25][1])
+        hand.set_data(x, y)
+
+    if not(frame_dict[1] == (0, 0) or frame_dict[8] == (0, 0)):
+        x = np.linspace(frame_dict[1][0], frame_dict[8][0])
+        y = np.linspace(frame_dict[1][1], frame_dict[8][1])
+        chest.set_data(x, y)
+
+    if not(frame_dict[8] == (0, 0) or frame_dict[9] == (0, 0)):
+        x = np.linspace(frame_dict[8][0], frame_dict[9][0])
+        y = np.linspace(frame_dict[8][1], frame_dict[9][1])
+        hip1.set_data(x, y)
+
+    if not(frame_dict[8] == (0, 0) or frame_dict[12] == (0, 0)):
+        x = np.linspace(frame_dict[8][0], frame_dict[12][0])
+        y = np.linspace(frame_dict[8][1], frame_dict[12][1])
+        hip2.set_data(x, y)
+
+    if not(frame_dict[9] == (0, 0) or frame_dict[10] == (0, 0)):
+        x = np.linspace(frame_dict[9][0], frame_dict[10][0])
+        y = np.linspace(frame_dict[9][1], frame_dict[10][1])
+        knee1.set_data(x, y)
+
+    if not(frame_dict[12] == (0, 0) or frame_dict[13] == (0, 0)):
+        x = np.linspace(frame_dict[12][0], frame_dict[13][0])
+        y = np.linspace(frame_dict[12][1], frame_dict[13][1])
+        knee2.set_data(x, y)
+
+    if not(frame_dict[10] == (0, 0) or frame_dict[11] == (0, 0)):
+        x = np.linspace(frame_dict[10][0], frame_dict[11][0])
+        y = np.linspace(frame_dict[10][1], frame_dict[11][1])
+        ankle1.set_data(x, y)
+
+    if not(frame_dict[13] == (0, 0) or frame_dict[14] == (0, 0)):
+        x = np.linspace(frame_dict[13][0], frame_dict[14][0])
+        y = np.linspace(frame_dict[133][1], frame_dict[14][1])
+        ankle2.set_data(x, y)
+
+    return shoulder1, shoulder2, neck, head1, head2, head3, head4, elbow1, elbow2, chest, wrist1, wrist2, hand, hip1, hip2, knee1, knee2, ankle1, ankle2
+
+
+plt.gca().invert_yaxis()
+ax.axes.xaxis.set_visible(False)
+ax.axes.yaxis.set_visible(False)
+anim = FuncAnimation(
+    fig,
+    animate,
+    frames=FRAMES,
+    interval=20,
+    blit=True,
+)
+anim.save("Raw_4015_2.gif")
 tl = np.array(theta_list)
 tl[tl < 0] = tl[tl < 0] + 2 * np.pi
 
