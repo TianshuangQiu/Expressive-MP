@@ -10,8 +10,11 @@ parser.add_argument('file_path', type=str,
                     help='Where is the json folder stored at?')
 parser.add_argument('n', type=int,
                     help='How many frames are there?')
-
+parser.add_argument("generate_vis", type=bool,
+                    help="Should I save a gif?")
 args = parser.parse_args()
+
+
 TIMESTEP = 0.001  # needs to evenly divide 0.04, should match input to t_toss when called
 FRAMERATE = 25  # FPS in original video, should be 25
 FRAMES = args.n
@@ -36,22 +39,19 @@ def readfile(n):
     return item
 
 
-def extract_angles(shoulder, elbow, wrist, fingertip):
+def extract_angles(chest, shoulder, elbow, wrist, fingertip):
     """
     Given the positions of the shoulder, elbow, wrist, 
     and fingertip, extract the three desired angles.
     """
-    xdiff1 = elbow[0] - shoulder[0]
-    ydiff1 = elbow[1] - shoulder[1]
-    theta1 = np.arctan2(ydiff1, xdiff1)
+    v0 = shoulder - chest
+    v1 = elbow - shoulder
+    v2 = wrist - elbow
+    v3 = fingertip - wrist
 
-    xdiff2 = wrist[0] - elbow[0]
-    ydiff2 = wrist[1] - elbow[1]
-    theta2 = np.arctan2(ydiff2, xdiff2)
-
-    xdiff3 = fingertip[0] - wrist[0]
-    ydiff3 = fingertip[1] - wrist[1]
-    theta3 = np.arctan2(ydiff3, xdiff3)
+    theta1 = np.arccos(np.dot(v0, v1) / np.linalg.norm(v0)/np.linalg.norm(v1))
+    theta2 = np.arccos(np.dot(v1, v2) / np.linalg.norm(v1)/np.linalg.norm(v2))
+    theta3 = np.arccos(np.dot(v2, v3) / np.linalg.norm(v2)/np.linalg.norm(v3))
 
     return [theta1, theta2, theta3]
 
@@ -81,55 +81,55 @@ def linear_interp(array, num):
     return interpolated[1:]
 
 
-theta_list = []
-all_frames = {}
-for n in range(FRAMES):
-    d = readfile(n)["people"][0]
-    series = d['pose_keypoints_2d']
-    body_dict = {}
+if (args.generate_vis):
+    theta_list = []
+    all_frames = {}
+    for n in range(FRAMES):
+        d = readfile(n)["people"][0]
+        series = d['pose_keypoints_2d']
+        body_dict = {}
 
-    pt0 = series[1:3]
-    pt1 = series[3:5]
-    pt2 = series[6:8]
-    pt3 = series[9:11]
-    pt4 = series[12:14]
-    hand_pt = get_hand_kpt(d)
+        hand_pt = get_hand_kpt(d)
 
-    for i in range(24):
-        x = series[i*3]
-        y = series[i*3+1]
-        body_dict[i] = (x, y)
-    body_dict[25] = hand_pt
+        for i in range(24):
+            x = series[i*3]
+            y = series[i*3+1]
+            body_dict[i] = (x, y)
+        body_dict[25] = hand_pt
 
-    thetas = extract_angles(pt2, pt3, pt4, hand_pt)
-    theta_list.append(thetas)
+        thetas = extract_angles(
+            np.array(body_dict[1]),
+            np.array(body_dict[2]),
+            np.array(body_dict[3]),
+            np.array(body_dict[4]),
+            hand_pt)
+        theta_list.append(thetas)
 
-    all_frames[n] = body_dict
+        all_frames[n] = body_dict
 
-fig, ax = plt.subplots(figsize=(5, 5))
-ax.set_ylim([0, 2000])
-ax.set_xlim([1000, 3000])
+    fig, ax = plt.subplots(figsize=(5, 5))
+    ax.set_ylim([0, 2000])
+    ax.set_xlim([1000, 3000])
 
-
-shoulder1, = ax.plot([], [])
-shoulder2, = ax.plot([], [])
-neck, = ax.plot([], [])
-head1, = ax.plot([], [])
-head2, = ax.plot([], [])
-head3, = ax.plot([], [])
-head4, = ax.plot([], [])
-elbow1, = ax.plot([], [])
-elbow2, = ax.plot([], [])
-wrist1, = ax.plot([], [])
-wrist2, = ax.plot([], [])
-hand, = ax.plot([], [])
-chest, = ax.plot([], [])
-hip1, = ax.plot([], [])
-hip2, = ax.plot([], [])
-knee1, = ax.plot([], [])
-knee2, = ax.plot([], [])
-ankle1, = ax.plot([], [])
-ankle2, = ax.plot([], [])
+    shoulder1, = ax.plot([], [])
+    shoulder2, = ax.plot([], [])
+    neck, = ax.plot([], [])
+    head1, = ax.plot([], [])
+    head2, = ax.plot([], [])
+    head3, = ax.plot([], [])
+    head4, = ax.plot([], [])
+    elbow1, = ax.plot([], [])
+    elbow2, = ax.plot([], [])
+    wrist1, = ax.plot([], [])
+    wrist2, = ax.plot([], [])
+    hand, = ax.plot([], [])
+    chest, = ax.plot([], [])
+    hip1, = ax.plot([], [])
+    hip2, = ax.plot([], [])
+    knee1, = ax.plot([], [])
+    knee2, = ax.plot([], [])
+    ankle1, = ax.plot([], [])
+    ankle2, = ax.plot([], [])
 
 
 def animate(i):
@@ -226,7 +226,7 @@ def animate(i):
 
     if not(frame_dict[13] == (0, 0) or frame_dict[14] == (0, 0)):
         x = np.linspace(frame_dict[13][0], frame_dict[14][0])
-        y = np.linspace(frame_dict[133][1], frame_dict[14][1])
+        y = np.linspace(frame_dict[13][1], frame_dict[14][1])
         ankle2.set_data(x, y)
 
     return shoulder1, shoulder2, neck, head1, head2, head3, head4, elbow1, elbow2, chest, wrist1, wrist2, hand, hip1, hip2, knee1, knee2, ankle1, ankle2
@@ -242,7 +242,9 @@ anim = FuncAnimation(
     interval=20,
     blit=True,
 )
-anim.save("Raw_4015_2.gif")
+anim.save(args.file_path.split("/")[-1] + ".gif")
+
+
 tl = np.array(theta_list)
 tl[tl < 0] = tl[tl < 0] + 2 * np.pi
 
@@ -254,7 +256,7 @@ smoothed_thetas = np.vstack([np.convolve(tl[:, 0], kernel, mode='same'),
                              np.convolve(tl[:, 1], kernel, mode='same'),
                              np.convolve(tl[:, 2], kernel, mode='same')])
 
-data = smoothed_thetas[:] - np.pi / 2
+data = smoothed_thetas[:]
 t = np.arange(len(data[0])) / FRAMERATE
 
 sh = 0 - data[0]
