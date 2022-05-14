@@ -91,6 +91,7 @@ def linear_interp(array, num):
 
 theta_list = []
 all_frames = {}
+
 for n in range(FRAMES):
     d = readfile(n)["people"][0]
     series = d['pose_keypoints_2d']
@@ -115,8 +116,15 @@ for n in range(FRAMES):
     all_frames[n] = body_dict
 
 
+hand_length = -1
+head_size = -1
+
+
 def animate(i):
+    global hand_length
+    global head_size
     frame_dict = all_frames[i]
+
     if not(frame_dict[1] == (0, 0) or frame_dict[2] == (0, 0)):
         x = np.linspace(frame_dict[1][0], frame_dict[2][0])
         y = np.linspace(frame_dict[1][1], frame_dict[2][1])
@@ -127,30 +135,40 @@ def animate(i):
         y = np.linspace(frame_dict[1][1], frame_dict[5][1])
         shoulder2.set_data(x, y)
 
+    # if not(frame_dict[0] == (0, 0) or frame_dict[14] == (0, 0)):
+    #     x = np.linspace(frame_dict[0][0], frame_dict[15][0])
+    #     y = np.linspace(frame_dict[0][1], frame_dict[15][1])
+    #     head1.set_data(x, y)
+
+    # if not(frame_dict[0] == (0, 0) or frame_dict[15] == (0, 0)):
+    #     x = np.linspace(frame_dict[0][0], frame_dict[16][0])
+    #     y = np.linspace(frame_dict[0][1], frame_dict[16][1])
+    #     head2.set_data(x, y)
+
+    if head_size < 70:
+        head_size = np.max([np.linalg.norm(np.array(frame_dict[0])-np.array(frame_dict[15])),
+                            np.linalg.norm(np.array(frame_dict[0])-np.array(frame_dict[16]))])
+
+    bozi = np.array(frame_dict[0])-np.array(frame_dict[1])
+    center = np.array(frame_dict[0])
+
+    circ.set_data(1.5*head_size*np.cos(np.linspace(0, 2*np.pi))+center[0],
+                  1.5*head_size*np.sin(np.linspace(0, 2*np.pi))+center[1])
+
     if not(frame_dict[0] == (0, 0) or frame_dict[1] == (0, 0)):
-        x = np.linspace(frame_dict[1][0], frame_dict[0][0])
-        y = np.linspace(frame_dict[1][1], frame_dict[0][1])
-        neck.set_data(x, y)
+        bozi = bozi/np.linalg.norm(bozi)*(np.linalg.norm(bozi)-1.5*head_size)
+        neck.set_data(np.linspace(frame_dict[1][0], frame_dict[1][0]+bozi[0]),
+                      np.linspace(frame_dict[1][1], frame_dict[1][1]+bozi[1]))
 
-    if not(frame_dict[0] == (0, 0) or frame_dict[14] == (0, 0)):
-        x = np.linspace(frame_dict[0][0], frame_dict[15][0])
-        y = np.linspace(frame_dict[0][1], frame_dict[15][1])
-        head1.set_data(x, y)
+    # if not(frame_dict[14] == (0, 0) or frame_dict[16] == (0, 0)):
+    #     x = np.linspace(frame_dict[16][0], frame_dict[18][0])
+    #     y = np.linspace(frame_dict[16][1], frame_dict[18][1])
+    #     head3.set_data(x, y)
 
-    if not(frame_dict[14] == (0, 0) or frame_dict[16] == (0, 0)):
-        x = np.linspace(frame_dict[16][0], frame_dict[18][0])
-        y = np.linspace(frame_dict[16][1], frame_dict[18][1])
-        head2.set_data(x, y)
-
-    if not(frame_dict[0] == (0, 0) or frame_dict[15] == (0, 0)):
-        x = np.linspace(frame_dict[0][0], frame_dict[16][0])
-        y = np.linspace(frame_dict[0][1], frame_dict[16][1])
-        head3.set_data(x, y)
-
-    if not(frame_dict[15] == (0, 0) or frame_dict[17] == (0, 0)):
-        x = np.linspace(frame_dict[15][0], frame_dict[17][0])
-        y = np.linspace(frame_dict[15][1], frame_dict[17][1])
-        head4.set_data(x, y)
+    # if not(frame_dict[15] == (0, 0) or frame_dict[17] == (0, 0)):
+    #     x = np.linspace(frame_dict[15][0], frame_dict[17][0])
+    #     y = np.linspace(frame_dict[15][1], frame_dict[17][1])
+    #     head4.set_data(x, y)
 
     if not(frame_dict[2] == (0, 0) or frame_dict[3] == (0, 0)):
         x = np.linspace(frame_dict[2][0], frame_dict[3][0])
@@ -172,10 +190,15 @@ def animate(i):
         y = np.linspace(frame_dict[6][1], frame_dict[7][1])
         wrist2.set_data(x, y)
 
+    if hand_length < 70:
+        hand_length = np.linalg.norm(np.array(frame_dict[25][0]) -
+                                     np.array(frame_dict[4][0]))
+
     if not(frame_dict[4] == (0, 0) or frame_dict[25] == (0, 0)):
-        x = np.linspace(frame_dict[4][0], frame_dict[25][0])
-        y = np.linspace(frame_dict[4][1], frame_dict[25][1])
-        hand.set_data(x, y)
+        hand_vec = np.array(frame_dict[25]) - np.array(frame_dict[4])
+        hand_vec = hand_vec/np.linalg.norm(hand_vec)*hand_length
+        hand.set_data(np.linspace(frame_dict[4][0], frame_dict[4][0]+hand_vec[0]),
+                      np.linspace(frame_dict[4][1], frame_dict[4][1]+hand_vec[1]))
 
     if not(frame_dict[1] == (0, 0) or frame_dict[8] == (0, 0)):
         x = np.linspace(frame_dict[1][0], frame_dict[8][0])
@@ -232,7 +255,7 @@ def animate(i):
     return shoulder1, shoulder2, neck, head1, head2, head3,\
         head4, elbow1, elbow2, chest, wrist1, wrist2, hand,\
         hip1, hip2, knee1, knee2, ankle1, ankle2, segment0,\
-        segment1, segment2
+        segment1, segment2, circ
 
 
 def remove_spike(arr):
@@ -249,6 +272,17 @@ def remove_spike(arr):
 
 tl = np.array(theta_list)
 tl[tl < 0] = tl[tl < 0] + 2 * np.pi
+
+if len(tl) % 2 != 0:
+    tl = tl[:-1]
+
+for i in range(len(tl) - 1):
+    for j in range(len(tl[i])):
+        if np.abs(tl[i, j] - tl[i + 1, j]) > np.abs(tl[i, j] - tl[i + 1, j] - 2 * np.pi):
+            tl[i + 1, j] += 2 * np.pi
+        if np.abs(tl[i, j] - tl[i + 1, j]) > np.abs(tl[i, j] - tl[i + 1, j] + 2 * np.pi):
+            tl[i + 1, j] -= 2 * np.pi
+
 
 kernel = np.array([1, 2, 4, 6, 10, 14, 17, 19, 17, 14, 10, 6, 4, 2, 1])
 # kernel = np.ones(9)
@@ -276,17 +310,21 @@ ax.plot(sh, label="sh")
 ax.plot(el, label="el")
 ax.plot(wr, label="wr")
 ax.legend()
-ax.set_title("Raw Signal")
+ax.set_title("Filtered Signal")
 ax.set_xlabel("Frame")
 ax.set_ylabel("Radian")
 plt.show()
 
 
 if (args.generate_vis):
-    fig, (ax, fax) = plt.subplots(1, 2, figsize=(
-        10, 5), sharex=False, sharey=False)
+    fig, (ax, fax) = plt.subplots(2, 1, figsize=(
+        5, 12), sharex=False, sharey=False)
     ax.set_ylim([0, 2000])
     ax.set_xlim([1000, 3000])
+
+    elbow1, = ax.plot([], [])
+    wrist1, = ax.plot([], [])
+    hand, = ax.plot([], [])
 
     shoulder1, = ax.plot([], [])
     shoulder2, = ax.plot([], [])
@@ -295,11 +333,9 @@ if (args.generate_vis):
     head2, = ax.plot([], [])
     head3, = ax.plot([], [])
     head4, = ax.plot([], [])
-    elbow1, = ax.plot([], [])
     elbow2, = ax.plot([], [])
-    wrist1, = ax.plot([], [])
     wrist2, = ax.plot([], [])
-    hand, = ax.plot([], [])
+    circ, = ax.plot([], [])
     chest, = ax.plot([], [])
     hip1, = ax.plot([], [])
     hip2, = ax.plot([], [])
