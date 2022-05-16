@@ -1,5 +1,7 @@
-from cProfile import label
+from os import remove
+from tqdm import tqdm
 import math
+from operator import pos
 from textwrap import wrap
 import matplotlib.pyplot as plt
 import argparse
@@ -7,8 +9,8 @@ import numpy as np
 import scipy.optimize
 
 
-TIMESTEP = 0.001  # needs to evenly divide 0.04, should match input to t_toss when called
-FRAMERATE = 25  # FPS in original video, should be 25
+TIMESTEP = 0.008  # needs to evenly divide 0.04, should match input to t_toss when called
+FRAMERATE = 30  # FPS in original video, should be 25
 prev_hand_kp = [0, 0]
 parser = argparse.ArgumentParser(
     description='Generate a trajectory from parsed JSON files')
@@ -19,7 +21,6 @@ parser.add_argument('out_path', type=str,
 parser.add_argument('filter', type=str,
                     help='Current options: fft, cc')
 
-# '/home/akita/autolab/ur5/ur5_description/urdf/ur5_joint_limited_robot.urdf'
 args = parser.parse_args()
 with open(args.file_path, "rb") as f:
     stack = np.load(f)
@@ -27,15 +28,16 @@ with open(args.file_path, "rb") as f:
 sh = stack[0]
 el = stack[1]
 wr = stack[2]
+rt = stack[3]
 t = np.arange(len(sh)) / FRAMERATE
 
 
 def linear_interp(array, num):
     interpolated = array[0]
-    for i in range(len(array) - 1):
+    print("Linearly interpolating")
+    for i in tqdm(range(len(array) - 1)):
         interp = np.linspace(array[i], array[i + 1], num)
         interpolated = np.vstack([interpolated, interp])
-
     return interpolated[1:]
 
 
@@ -81,30 +83,61 @@ def fit_sin(tt, yy):
     return {"amp": A, "omega": w, "phase": p, "offset": c, "freq": f, "period": 1./f, "fitfunc": fitfunc}
 
 
-def do_fft():
-    sh_filtered = fourier_filter(sh, 25)
-    el_filtered = fourier_filter(el, 15)
-    wr_filtered = fourier_filter(wr, 10)
+def save_traj(position):
+    div = int(1/TIMESTEP)
+    position = linear_interp(position, div)
+    t_int = linear_interp(t[np.newaxis].T, div)
 
-    position = np.vstack([np.zeros_like(t),
-                          # np.sin(np.arange(len(data[0])) * 2 * np.pi / len(data[0])) * 0.5,
-                          sh_filtered,
-                          el_filtered,
-                          wr_filtered,
-                          np.ones_like(t) * np.pi / 2,
-                          np.zeros_like(t)
-                          ]).T
+    velocity = num_deriv(position, TIMESTEP/FRAMERATE)
+    acceleration = num_deriv(velocity, TIMESTEP/FRAMERATE)
+    jerk = num_deriv(acceleration, TIMESTEP/FRAMERATE)
 
-    position = linear_interp(position, int(1 / FRAMERATE / TIMESTEP))
-    t_int = linear_interp(t[np.newaxis].T, int(1 / FRAMERATE / TIMESTEP))
+    output = [0]*19
 
-    velocity = num_deriv(position, TIMESTEP)
-    acceleration = num_deriv(velocity, TIMESTEP)
-    jerk = num_deriv(acceleration, TIMESTEP)
+    print("Filtering interpolated data")
+    curr_i = 0
+    for k in tqdm(range(len(t_int))):
+        if t_int[k] >= curr_i * TIMESTEP:
+            curr_i += 1
+            curr_row = np.hstack([
+                t_int[k], position[k], acceleration[k], jerk[k]])
+            output = np.vstack([output, curr_row])
 
-    output = np.hstack([t_int, position, velocity, acceleration, jerk])
+    output = output[1:]
     output = np.round_(output, decimals=5)
-    np.savetxt("IMG_4015.dat", output, fmt="%10.5f", delimiter='\t')
+    np.savetxt(args.out_path, output, fmt="%10.5f", delimiter='\t')
+
+
+def plot_traj(position):
+    position = position.T
+    for p in range(len(position)):
+        plt.plot(position[p], label=f"joint {p}")
+    plt.title("Planned Trajectory")
+    plt.xlabel("Time (steps)")
+    plt.ylabel("Angle (rad)")
+    ax = plt.legend()
+    plt.show()
+
+
+def do_fft():
+    sh_filtered = fourier_filter(sh, 20)
+    el_filtered = fourier_filter(el, 20)
+    wr_filtered = fourier_filter(wr, 20)
+    rt_filtered = fourier_filter(rt, 20)
+
+    position = np.vstack([
+        np.pi - np.sin(np.arange(len(t)) * 2 * 5 *
+                       np.pi / len(t)) * 0.8,  # shoulder rotation
+        sh_filtered * 1,  # shoulder abduction
+        el_filtered * 1,  # elbow angle
+        wr_filtered,  # wrist flexion
+        # wrist yaw (currently unused due to self-collisions)
+        np.ones_like(t) * np.pi / 2,
+        rt_filtered * 1 - np.pi / 2,  # wrist roll
+    ]).T
+
+    plot_traj(position)
+    save_traj(position)
 
 
 def do_cc():
@@ -203,17 +236,9 @@ def do_cc():
                           fourier_filter(wr, 30),
                           get_rand_motion(5),
                           get_rand_motion(5)/5,
-                          ])
+                          ]).T
 
-    for p in range(len(position)):
-        plt.plot(position[p], label=f"joint {p}")
-    plt.title("Planned Trajectory")
-    plt.xlabel("Time (steps)")
-    plt.ylabel("Angle (rad)")
-    ax = plt.legend()
-    plt.show()
-
-    position = position.T
+    plot_traj(position)
     position = linear_interp(position, int(1 / FRAMERATE / TIMESTEP))
     t_int = linear_interp(t[np.newaxis].T, int(1 / FRAMERATE / TIMESTEP))
 
@@ -232,35 +257,90 @@ def top_n(arr, n=10):
     return np.fft.irfft(arr_d)
 
 
+def remove_cluster(arr):
+    out = []
+    out.append(arr[0])
+
+    for k in arr:
+        if np.abs(k-out[-1]) > 30:
+            out.append(k)
+
+    return out
+
+
 def do_decomp():
+    global t
 
-    position = np.vstack([top_n(sh),
-                          sh,
-                          el,
-                          wr,
-                          top_n(el),
-                          top_n(wr),
-                          ])
+    sh_filtered = fourier_filter(sh, 20)
+    el_filtered = fourier_filter(el, 20)
+    wr_filtered = fourier_filter(wr, 20)
+    rt_filtered = fourier_filter(rt, 20)
 
-    for p in range(len(position)):
-        plt.plot(position[p], label=f"joint {p}")
-    plt.title("Planned Trajectory")
-    plt.xlabel("Time (steps)")
-    plt.ylabel("Angle (rad)")
-    ax = plt.legend()
-    plt.show()
+    sh_d = np.abs(np.gradient(sh_filtered, axis=0))
+    el_d = np.abs(np.gradient(el_filtered, axis=0))
+    wr_d = np.abs(np.gradient(wr_filtered, axis=0))
 
-    position = position.T
-    position = linear_interp(position, int(1 / FRAMERATE / TIMESTEP))
-    t_int = linear_interp(t[np.newaxis].T, int(1 / FRAMERATE / TIMESTEP))
+    sh_rest = top_n(sh_filtered, n=3)
+    el_rest = top_n(el_filtered, n=5)
+    wr_rest = top_n(wr_filtered, n=7)
 
-    velocity = num_deriv(position, TIMESTEP)
-    acceleration = num_deriv(velocity, TIMESTEP)
-    jerk = num_deriv(acceleration, TIMESTEP)
+    shr_d = np.abs(np.gradient(sh_rest, axis=0))
+    elr_d = np.abs(np.gradient(el_rest, axis=0))
+    wrr_d = np.abs(np.gradient(wr_rest, axis=0))
 
-    output = np.hstack([t_int, position, velocity, acceleration, jerk])
-    output = np.round_(output, decimals=5)
-    np.savetxt(args.out_path, output, fmt="%10.5f", delimiter='\t')
+    zeros = np.where(sh_d < 0.005)[0]
+    full_z = [0]
+    for z in zeros:
+        if el_d[z] + wr_d[z] < 0.01:
+            full_z += [z]
+    full_z = remove_cluster(full_z)
+
+    zeros = np.where(shr_d < 0.001)[0]
+    rest_z = [0]
+    for z in zeros:
+        if elr_d[z] + wrr_d[z] < 0.002:
+            rest_z += [z]
+    rest_z = remove_cluster(rest_z)
+
+    print(full_z, "\n", rest_z)
+
+    proto_pos = np.zeros((3, 1))
+    for i in range(5, 6):
+        low = np.random.choice(rest_z[:4])
+        high = np.random.choice(rest_z[-4:])
+
+        rest = sh_rest[low:high] - \
+            sh_rest[low]+sh_filtered[full_z[i]]
+        final_sh = np.hstack(
+            (sh_filtered[:full_z[i]], rest, sh_filtered[full_z[i]:]-sh_filtered[full_z[i]]+rest[-1]))
+
+        rest = el_rest[low:high] - \
+            el_rest[low]+el_filtered[full_z[i]]
+        final_el = np.hstack(
+            (el_filtered[:full_z[i]], rest, el_filtered[full_z[i]:]-el_filtered[full_z[i]]+rest[-1]))
+
+        rest = wr_rest[low:high] - \
+            wr_rest[low]+wr_filtered[full_z[i]]
+        final_wr = np.hstack(
+            (wr_filtered[:full_z[i]], rest, wr_filtered[full_z[i]:]-wr_filtered[full_z[i]]+rest[-1]))
+
+        curr_out = np.vstack([final_sh, final_el, final_wr])
+
+        proto_pos = np.hstack([proto_pos, curr_out])
+
+    t = np.arange(len(proto_pos[0])) / FRAMERATE
+
+    position = np.vstack([
+        np.pi - np.sin(np.arange(len(t)) * 2 * 5 *
+                       np.pi / len(t)) * 0.8,  # shoulder rotation
+        proto_pos,
+        # wrist yaw (currently unused due to self-collisions)
+        np.ones_like(t) * np.pi / 2,
+        np.ones_like(t) * np.pi / 2,  # wrist roll
+    ]).T
+
+    plot_traj(position)
+    save_traj(position)
 
 
 # Rest of program

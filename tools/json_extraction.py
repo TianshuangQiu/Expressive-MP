@@ -20,6 +20,11 @@ TIMESTEP = 0.001  # needs to evenly divide 0.04, should match input to t_toss wh
 FRAMERATE = 30  # FPS in original video, should be 30
 FRAMES = args.n
 prev_hand_kp = [0, 0]
+prev_thumb_kp = [0, 0]
+
+
+def sigmoid(z):
+    return 1 / (1 + np.exp(-z))
 
 
 def readfile(n):
@@ -40,7 +45,7 @@ def readfile(n):
     return item
 
 
-def extract_angles(chest, shoulder, elbow, wrist, fingertip):
+def extract_angles(chest, shoulder, elbow, wrist, fingertip, thumbtip):
     """
     Given the positions of the shoulder, elbow, wrist,
     and fingertip, extract the three desired angles.
@@ -61,7 +66,11 @@ def extract_angles(chest, shoulder, elbow, wrist, fingertip):
     ydiff3 = fingertip[1] - wrist[1]
     theta3 = np.arctan2(ydiff3, xdiff3)
 
-    return [theta0, theta1, theta2, theta3]
+    xdiff4 = thumbtip[0] - wrist[0]
+    ydiff4 = thumbtip[1] - wrist[1]
+    theta4 = np.arctan2(ydiff4, xdiff4)
+
+    return [theta0, theta1, theta2, theta3, theta4]
 
 
 def get_hand_kpt(d):
@@ -78,6 +87,25 @@ def get_hand_kpt(d):
             prev_hand_kp = p
             return p
     return prev_hand_kp
+
+
+def get_thumb_kpt(d):
+    """
+    Get the thumb detection in order to find the rotation angle of the wrist.
+    """
+    global prev_thumb_kp
+    thumb = None
+
+    keypoints = d['hand_right_keypoints_2d']
+    for i in [4, 3, 2, 1]:
+        p = keypoints[3 * i: 3 * i + 2]
+        if p[0] != 0 and p[1] != 0:
+            thumb = p
+            break
+    if thumb == None:
+        return prev_thumb_kp
+    else:
+        return thumb
 
 
 def linear_interp(array, num):
@@ -98,6 +126,7 @@ for n in range(FRAMES):
     body_dict = {}
 
     hand_pt = get_hand_kpt(d)
+    thumb_pt = get_thumb_kpt(d)
 
     for i in range(24):
         x = series[i*3]
@@ -110,6 +139,7 @@ for n in range(FRAMES):
         np.array(body_dict[2]),
         np.array(body_dict[3]),
         np.array(body_dict[4]),
+        thumb_pt,
         hand_pt)
     theta_list.append(thetas)
 
@@ -258,23 +288,8 @@ def animate(i):
         segment1, segment2, circ
 
 
-def remove_spike(arr):
-    total = 0
-    max_delta = np.std(arr)
-    for i in range(1, len(arr)):
-        if np.abs(arr[i]-arr[i-1]) > max_delta/2:
-            arr[i] = 0.01*(arr[i]-arr[i-1])+arr[i-1]
-            total += 1
-
-    print(f"Pruned a total of {total} datapoints.")
-    return arr
-
-
 tl = np.array(theta_list)
 tl[tl < 0] = tl[tl < 0] + 2 * np.pi
-
-if len(tl) % 2 != 0:
-    tl = tl[:-1]
 
 for i in range(len(tl) - 1):
     for j in range(len(tl[i])):
@@ -291,34 +306,37 @@ kernel = kernel / np.sum(kernel)
 smoothed_thetas = np.vstack([np.convolve(tl[:, 0], kernel, mode='same'),
                              np.convolve(tl[:, 1], kernel, mode='same'),
                              np.convolve(tl[:, 2], kernel, mode='same'),
-                             np.convolve(tl[:, 3], kernel, mode='same')])
+                             np.convolve(tl[:, 3], kernel, mode='same'),
+                             np.convolve(tl[:, 4], kernel, mode='same')])
 
 data = smoothed_thetas[:]
 t = np.arange(len(data[0])) / FRAMERATE
 
-sh = data[0] - data[1]
+sh = data[0] - data[1] - np.pi / 2
 el = data[1] - data[2]
 wr = data[2] - data[3]
+rt = data[3] - data[4]
 
-sh = remove_spike(sh)
-el = remove_spike(el)
-wr = remove_spike(wr)
+
+rt = sigmoid(rt / np.max(np.abs(rt)) * 3) * np.pi / 2
+
 
 fig, ax = plt.subplots()
 ax.set_ylim([-5, 6])
 ax.plot(sh, label="sh")
 ax.plot(el, label="el")
 ax.plot(wr, label="wr")
+ax.plot(rt, label="rt")
 ax.legend()
 ax.set_title("Filtered Signal")
-ax.set_xlabel("Frame")
-ax.set_ylabel("Radian")
+ax.set_xlabel("Frames")
+ax.set_ylabel("Radians")
 plt.show()
 
 
 if (args.generate_vis):
-    fig, (ax, fax) = plt.subplots(2, 1, figsize=(
-        5, 12), sharex=False, sharey=False)
+    fig, (ax, fax) = plt.subplots(1, 2, figsize=(
+        20, 10), sharex=False, sharey=False)
     ax.set_ylim([0, 2000])
     ax.set_xlim([1000, 3000])
 
@@ -366,6 +384,6 @@ if (args.generate_vis):
     )
     anim.save(args.file_path.split("/")[-1] + ".gif")
 
-data_stack = np.vstack([sh, el, wr])
-with open("saves/IMG_4015", "wb") as f:
+data_stack = np.vstack([sh, el, wr, rt])
+with open("saves/"+args.file_path.split("/")[-1], "wb") as f:
     np.save(f, data_stack)
