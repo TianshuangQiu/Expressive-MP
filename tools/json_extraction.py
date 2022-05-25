@@ -19,30 +19,12 @@ args = parser.parse_args()
 TIMESTEP = 0.001  # needs to evenly divide 0.04, should match input to t_toss when called
 FRAMERATE = 30  # FPS in original video, should be 30
 FRAMES = args.n
-prev_hand_kp = [0, 0]
-prev_thumb_kp = [0, 0]
+prev_hand_kp = (0, 0)
+prev_thumb_kp = (0, 0)
 
 
 def sigmoid(z):
     return 1 / (1 + np.exp(-z))
-
-
-def readfile(n):
-    if n < 10:
-        numstring = "000" + str(n)
-    elif n < 100:
-        numstring = "00" + str(n)
-    elif n < 1000:
-        numstring = "0" + str(n)
-    else:
-        numstring = str(n)
-
-    filename = "/home/akita/autolab/Expressive-MP/waypoints/IMG_4015/IMG_4015_00000000" + \
-        numstring + "_keypoints.json"
-    # filename = args.file_path + numstring + "_keypoints.json"
-
-    item = pd.read_json(filename)
-    return item
 
 
 def extract_angles(chest, shoulder, elbow, wrist, fingertip, thumbtip):
@@ -80,9 +62,9 @@ def get_hand_kpt(d):
     """
     global prev_hand_kp
 
-    keypoints = d['hand_right_keypoints_2d']
+    keypoints = d[68:68+41]
     for i in [12, 16, 8, 20]:
-        p = keypoints[3 * i: 3 * i + 2]
+        p = keypoints[2 * i: 2 * i + 2]
         if p[0] != 0 and p[1] != 0:
             prev_hand_kp = p
             return p
@@ -96,9 +78,10 @@ def get_thumb_kpt(d):
     global prev_thumb_kp
     thumb = None
 
-    keypoints = d['hand_right_keypoints_2d']
+    keypoints = d[68:68+41]
     for i in [4, 3, 2, 1]:
-        p = keypoints[3 * i: 3 * i + 2]
+        p = keypoints[2 * i: 2 * i + 2]
+        p = tuple(i for i in p)
         if p[0] != 0 and p[1] != 0:
             thumb = p
             break
@@ -118,21 +101,25 @@ def linear_interp(array, num):
 
 
 theta_list = []
+port = np.load(args.file_path)
+print(port.shape)
 all_frames = {}
 
+
 for n in range(FRAMES):
-    d = readfile(n)["people"][0]
-    series = d['pose_keypoints_2d']
+    d = port[n]
+
+    series = d[0:49]
     body_dict = {}
 
     hand_pt = get_hand_kpt(d)
     thumb_pt = get_thumb_kpt(d)
 
     for i in range(24):
-        x = series[i*3]
-        y = series[i*3+1]
+        x = series[i*2]
+        y = series[i*2+1]
         body_dict[i] = (x, y)
-    body_dict[25] = hand_pt
+    body_dict[25] = tuple(k for k in hand_pt)
 
     thetas = extract_angles(
         np.array(body_dict[1]),
@@ -175,7 +162,7 @@ def animate(i):
     #     y = np.linspace(frame_dict[0][1], frame_dict[16][1])
     #     head2.set_data(x, y)
 
-    if head_size < 70:
+    if head_size < 50:
         head_size = np.max([np.linalg.norm(np.array(frame_dict[0])-np.array(frame_dict[15])),
                             np.linalg.norm(np.array(frame_dict[0])-np.array(frame_dict[16]))])
 
@@ -338,7 +325,7 @@ if (args.generate_vis):
     fig, (ax, fax) = plt.subplots(1, 2, figsize=(
         20, 10), sharex=False, sharey=False)
     ax.set_ylim([0, 2000])
-    ax.set_xlim([1000, 3000])
+    ax.set_xlim([0, 2000])
 
     elbow1, = ax.plot([], [])
     wrist1, = ax.plot([], [])

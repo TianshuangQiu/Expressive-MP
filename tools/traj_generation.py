@@ -88,22 +88,24 @@ def save_traj(position):
     position = linear_interp(position, div)
     t_int = linear_interp(t[np.newaxis].T, div)
 
-    velocity = num_deriv(position, TIMESTEP/FRAMERATE)
-    acceleration = num_deriv(velocity, TIMESTEP/FRAMERATE)
-    jerk = num_deriv(acceleration, TIMESTEP/FRAMERATE)
-
-    output = [0]*19
+    curr_i = 0
+    proto_out = [0]*7
 
     print("Filtering interpolated data")
-    curr_i = 0
     for k in tqdm(range(len(t_int))):
         if t_int[k] >= curr_i * TIMESTEP:
             curr_i += 1
             curr_row = np.hstack([
-                t_int[k], position[k], acceleration[k], jerk[k]])
-            output = np.vstack([output, curr_row])
+                t_int[k], position[k]])
+            proto_out = np.vstack([proto_out, curr_row])
 
-    output = output[1:]
+    proto_out = proto_out[1:]
+
+    velocity = num_deriv(position, TIMESTEP)
+    acceleration = num_deriv(velocity, TIMESTEP)
+    jerk = num_deriv(acceleration, TIMESTEP)
+
+    output = np.hstack[proto_out, velocity, acceleration, jerk]
     output = np.round_(output, decimals=5)
     np.savetxt(args.out_path, output, fmt="%10.5f", delimiter='\t')
 
@@ -314,13 +316,13 @@ def do_decomp():
         final_sh = np.hstack(
             (sh_filtered[:full_z[i]], rest, sh_filtered[full_z[i]:]-sh_filtered[full_z[i]]+rest[-1]))
 
-        rest = el_rest[low:high] - \
-            el_rest[low]+el_filtered[full_z[i]]
+        rest = el_rest[low:high] -
+        el_rest[low]+el_filtered[full_z[i]]
         final_el = np.hstack(
             (el_filtered[:full_z[i]], rest, el_filtered[full_z[i]:]-el_filtered[full_z[i]]+rest[-1]))
 
-        rest = wr_rest[low:high] - \
-            wr_rest[low]+wr_filtered[full_z[i]]
+        rest = wr_rest[low:high] -
+        wr_rest[low]+wr_filtered[full_z[i]]
         final_wr = np.hstack(
             (wr_filtered[:full_z[i]], rest, wr_filtered[full_z[i]:]-wr_filtered[full_z[i]]+rest[-1]))
 
