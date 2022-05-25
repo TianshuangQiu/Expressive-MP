@@ -253,21 +253,21 @@ def animate(i):
         ankle2.set_data(x, y)
 
     base = np.array([0, 0])
-    tip = np.array([np.cos(sh[i] + np.pi), np.sin(sh[i] + np.pi)])
+    tip = np.array([np.cos(sh[i] + np.pi/2), np.sin(sh[i] + np.pi/2)])
     dat = np.linspace(base, tip)
-    segment0.set_data(dat.T[0], dat.T[1])
+    segment0.set_data(-dat.T[0], -dat.T[1])
 
     base = tip
-    tip = np.array([np.cos(el[i]+sh[i] + np.pi),
-                   np.sin(el[i]+sh[i] + np.pi)]) * 2 + tip
+    tip = np.array([np.cos(el[i]+sh[i] + np.pi/2),
+                   np.sin(el[i]+sh[i] + np.pi/2)]) * 2 + tip
     dat = np.linspace(base, tip)
-    segment1.set_data(dat.T[0], dat.T[1])
+    segment1.set_data(-dat.T[0], -dat.T[1])
 
     base = tip
-    tip = np.array([np.cos(wr[i]+el[i]+sh[i] + np.pi),
-                   np.sin(wr[i]+el[i]+sh[i] + np.pi)]) + tip
+    tip = np.array([np.cos(wr[i]+el[i]+sh[i] + np.pi/2),
+                   np.sin(wr[i]+el[i]+sh[i] + np.pi/2)]) + tip
     dat = np.linspace(base, tip)
-    segment2.set_data(dat.T[0], dat.T[1])
+    segment2.set_data(-dat.T[0], -dat.T[1])
 
     return shoulder1, shoulder2, neck, head1, head2, head3,\
         head4, elbow1, elbow2, chest, wrist1, wrist2, hand,\
@@ -325,7 +325,7 @@ if (args.generate_vis):
     fig, (ax, fax) = plt.subplots(1, 2, figsize=(
         20, 10), sharex=False, sharey=False)
     ax.set_ylim([0, 2000])
-    ax.set_xlim([0, 2000])
+    ax.set_xlim([500, 2500])
 
     elbow1, = ax.plot([], [])
     wrist1, = ax.plot([], [])
@@ -369,7 +369,7 @@ if (args.generate_vis):
         interval=20,
         blit=True,
     )
-    anim.save(args.file_path.split("/")[-1] + ".gif")
+    anim.save(args.file_path.split("/")[-1] + ".gif", fps=FRAMERATE)
 
 data_stack = np.vstack([sh, el, wr, rt])
 with open("saves/"+args.file_path.split("/")[-1], "wb") as f:
