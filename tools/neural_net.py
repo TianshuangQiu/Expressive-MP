@@ -69,7 +69,7 @@ model = Model(266, 300, 6)
 optim = torch.optim.SGD(
     lr=learning_rate, params=model.parameters(), momentum=momentum)
 
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+device = torch.device('cpu')
 total_steps = len(train_loader)
 for epoch in range(n_epochs):
     for i, (data, label) in enumerate(train_loader):
