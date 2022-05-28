@@ -101,7 +101,9 @@ def linear_interp(array, num):
 
 
 theta_list = []
-port = np.load(args.file_path)
+port = []
+with open(args.file_path, "rb") as f:
+    port=np.load(f)
 print(port.shape)
 all_frames = {}
 

@@ -48,4 +48,4 @@ robot.animate(cfg_trajectory={robot.actuated_joints[0]: arr[0],
                               robot.actuated_joints[3]: arr[3],
                               robot.actuated_joints[4]: arr[4],
                               robot.actuated_joints[5]: arr[5]},
-              loop_time=real_time)
+              loop_time=real_time*4)
